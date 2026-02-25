@@ -1,4 +1,4 @@
-from interface.cli import start 
+from jarvis.interfaces.cli.main import main
 
 if __name__ == "__main__":
-    start()
+    main()
