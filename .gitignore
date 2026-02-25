@@ -1,0 +1,34 @@
+# Ambiente virtual
+venv/
+.env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Banco de dados
+data/db/*.db
+*.sqlite3
+
+# Logs
+data/logs/
+*.log
+
+# Modelos treinados
+data/models/
+*.pkl
+*.joblib
+
+# Arquivos temporários
+*.tmp
+*.bak
+
+# IDE
+.vscode/
+.ideas/
+
+# Sistema
+.DS_Store
+Thumbs.db
