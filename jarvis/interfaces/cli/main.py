@@ -25,6 +25,8 @@ from jarvis.interfaces.cli.router import CommandRouter
 from jarvis.interfaces.cli.commands.task.add_task_command import AddTaskCommand
 from jarvis.interfaces.cli.commands.task.remove_task_command import RemoveTaskCommand
 from jarvis.interfaces.cli.commands.task.list_tasks_command import ListTasksCommand
+from jarvis.interfaces.cli.commands.task.mark_task_complete_command import MarkTaskCompleteCommand
+from jarvis.interfaces.cli.commands.task.change_task_title_command import ChangeTaskTitleCommand
 
 from jarvis.interfaces.cli.commands.conversation.greeting_command import GreetingCommand
 from jarvis.interfaces.cli.commands.conversation.time_command import TimeCommand
@@ -87,9 +89,14 @@ def main():
 
     # Commands
     commands = [
+        #Task Commands
         AddTaskCommand(task_service),
         RemoveTaskCommand(task_service),
         ListTasksCommand(task_service),
+        MarkTaskCompleteCommand(task_service),
+        ChangeTaskTitleCommand(task_service),
+        
+        # Conversation Commands
         GreetingCommand(basic_handler),
         TimeCommand(basic_handler),
     ]
