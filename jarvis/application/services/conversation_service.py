@@ -14,6 +14,6 @@ class ConversationService:
         logging.info("Conversa registrada com sucesso.")
         
     def get_history(self):
-        return self.repository.list_all()
         logging.info("Histórico de conversas recuperado com sucesso.")
+        return self.repository.list_all()
 

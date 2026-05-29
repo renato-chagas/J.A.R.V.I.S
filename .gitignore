@@ -21,6 +21,11 @@ data/models/
 *.pkl
 *.joblib
 
+# Modelos de IA e Pesos
+*.gguf
+*.bin
+infrastructure/engine/core_cpp/models/weights/
+
 # Arquivos temporários
 *.tmp
 *.bak

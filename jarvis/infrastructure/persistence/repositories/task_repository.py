@@ -12,12 +12,12 @@ class TaskRepository:
 
     def create(self, task: Task):
         with self._connect() as conn:
-            curosor = conn.cursor()
-            curosor.execute(
+            cursor = conn.cursor()
+            cursor.execute(
                 "INSERT INTO tasks (title, completed) VALUES (?, ?)",
                 (task.title, task.completed),
             )
-            task.id = curosor.lastrowid
+            task.id = cursor.lastrowid
 
     def delete(self, task_id: int):
         with self._connect() as conn:

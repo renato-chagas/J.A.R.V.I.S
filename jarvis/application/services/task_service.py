@@ -41,8 +41,8 @@ class TaskService:
         logging.info(f"Tarefa '{old_title}' renomeada para '{new_title}' com sucesso.")
     
     def list_tasks(self):
-        return self.repository.list_all()   
         logging.info("Lista de tarefas recuperada com sucesso.") 
+        return self.repository.list_all()   
     
         
         

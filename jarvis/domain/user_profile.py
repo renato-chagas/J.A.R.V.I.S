@@ -5,7 +5,7 @@ class UserProfile:
         self.name = name
         self.preferences = {}
         
-    def set_preference(self, key, str, value):
+    def set_preference(self, key: str, value):
         """Define uma preferência do usuário."""
         self.preferences[key] = value
         
