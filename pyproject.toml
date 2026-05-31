@@ -1,0 +1,19 @@
+[project]
+name = "J.A.R.V.I.S"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "renato-chagas", email = "renatochagas.m@gmail.com"},
+]
+dependencies = ["psutil>=7.2.2", "chromadb>=1.5.9", "sentence-transformers>=5.5.1"]
+requires-python = "==3.14.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pdm]
+distribution = false
+
+[tool.pdm.scripts]
+# Mantemos apenas os scripts puros que o Python gerencia diretamente
+cli = "python main.py"
+dev = "python scripts/start_dev.py"
