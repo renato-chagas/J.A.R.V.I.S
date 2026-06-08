@@ -1,101 +1,42 @@
-import os
 import logging
+from pathlib import Path
 from difflib import SequenceMatcher
 
 class ProjectScanner:
-    """O radar inteligente do J.A.R.V.I.S. com rastreio de atalhos e blindagem anti-loop."""
+    """Radar de projetos inteligente com indexação e verificação de integridade Git."""
     
     def __init__(self, base_search_dirs: list = None):
-        home_dir = os.path.expanduser("~")
-        self.search_dirs = base_search_dirs or [home_dir]
-
-    def _is_similar(self, hint_word: str, path_segment: str, threshold: float = 0.7) -> bool:
-        hint = hint_word.lower().strip()
-        seg = path_segment.lower().strip()
-        if hint in seg or seg in hint: return True
-
-        dictionary = {
-            "documents": ["documentos", "docs"],
-            "documentos": ["documents", "docs"],
-            "projects": ["projetos", "programming", "dev"],
-            "projetos": ["projects", "programming", "dev"],
-            "personal": ["pessoais", "pessoal"],
-        }
-        if hint in dictionary:
-            for eq in dictionary[hint]:
-                if eq in seg or seg in eq: return True
-
-        return SequenceMatcher(None, hint, seg).ratio() >= threshold
-
-    def _determine_project_type(self, folder_contents: list) -> str:
-        if ("manage.py" in folder_contents or "backend" in folder_contents) and ("package.json" in folder_contents or "frontend" in folder_contents):
-            return "fullstack_django_next"
-        elif "manage.py" in folder_contents:
-            return "django_backend"
-        elif "package.json" in folder_contents:
-            return "node_frontend"
-        return "generic_code"
-
-    def _is_real_project(self, folder_contents: list, is_exact_match: bool) -> bool:
-        if "bruno.json" in folder_contents:
-            return False
-        if is_exact_match:
-            return True
-        project_markers = {"package.json", "manage.py", ".git", "src", "backend", "frontend", "main.py"}
-        return any(marker in folder_contents for marker in project_markers)
-
-    def scan_for_project(self, project_name: str, path_hint: str = None) -> dict:
-        project_name_lower = project_name.lower().strip()
-        logging.info(f"Scanning for '{project_name}'...")
-        
-        ignore_dirs = {
+        self.search_dirs = [Path(d).expanduser() for d in (base_search_dirs or ["~"])]
+        self.ignore_dirs = {
             ".venv", "venv", "env", "node_modules", "__pycache__", "build", "dist", "out",
-            ".cache", ".local", ".config", ".npm", ".mozilla", ".vscode", "snap", "flatpak",
-            ".steam", "Steam", ".wine", "PlayOnLinux", ".var", 
-            "Downloads", "Pictures", "Videos", "Music", "Imagens", "Vídeos", "Música",
-            "bruno" 
+            ".cache", ".local", ".config", ".npm", ".vscode", ".git", "snap", "flatpak",
+            "Downloads", "Pictures", "Videos", "Music", "bruno"
         }
 
-        hint_words = []
-        if path_hint:
-            clean_hint = path_hint.replace(',', ' ').replace('>', ' ').replace('/', ' ')
-            hint_words = [word.strip().lower() for word in clean_hint.split() if word.strip()]
+    def _determine_project_type(self, path: Path) -> str:
+        items = {x.name for x in path.iterdir()}
+        if "manage.py" in items and "package.json" in items: return "fullstack_django_next"
+        if "manage.py" in items: return "django_backend"
+        if "package.json" in items: return "node_frontend"
+        return "git_repo" if (path / ".git").exists() else "generic_code"
 
-        visited_paths = set()
-
+    def scan_for_project(self, project_name: str) -> dict:
+        target = project_name.lower().strip()
         for search_dir in self.search_dirs:
-            if not os.path.exists(search_dir): continue
+            if not search_dir.exists(): continue
+            
+            # Walk otimizado
+            for root, dirs, _ in os.walk(search_dir):
+                dirs[:] = [d for d in dirs if d not in self.ignore_dirs]
+                root_path = Path(root)
+                folder_name = root_path.name.lower()
                 
-            for root, dirs, files in os.walk(search_dir, followlinks=True):
-                real_path = os.path.realpath(root)
-                if real_path in visited_paths:
-                    dirs[:] = []
-                    continue
-                visited_paths.add(real_path)
-
-                dirs[:] = [d for d in dirs if d not in ignore_dirs]
-                
-                path_segments = root.lower().split(os.sep)
-                if hint_words:
-                    match_sub_filtro = True
-                    for word in hint_words:
-                        if not any(self._is_similar(word, segment) for segment in path_segments):
-                            match_sub_filtro = False
-                            break
-                    if not match_sub_filtro: continue 
-
-                current_folder_name = os.path.basename(root).lower()
-                is_exact = (project_name_lower == current_folder_name)
-                is_fuzzy = SequenceMatcher(None, project_name_lower, current_folder_name).ratio() >= 0.8
-                is_contained = (project_name_lower in current_folder_name and len(project_name_lower) >= 3)
-                
-                if is_exact or is_fuzzy or is_contained:
-                    try:
-                        tudo_na_pasta = os.listdir(root)
-                    except PermissionError: continue
-                    
-                    if self._is_real_project(tudo_na_pasta, is_exact):
-                        project_type = self._determine_project_type(tudo_na_pasta)
-                        logging.info(f"Alvo localizado com sucesso: {root}")
-                        return {"path": root, "type": project_type}
+                score = SequenceMatcher(None, target, folder_name).ratio()
+                if target == folder_name or score >= 0.85 or (target in folder_name and len(target) > 3):
+                    if (root_path / ".git").exists() or any((root_path / m).exists() for m in ["package.json", "manage.py", "main.py"]):
+                        return {
+                            "path": str(root_path),
+                            "type": self._determine_project_type(root_path),
+                            "is_git": (root_path / ".git").exists()
+                        }
         return None

@@ -6,4 +6,5 @@ all = [
     "OpenAppCommand",
     "StartWorkspaceCommand",
     "SystemHealthCommand",
+    "ScreenReader",
 ]

@@ -1,12 +1,14 @@
 import os
 import sqlite3
+import time
 from jarvis.infrastructure.engine.llm_client import LocalLLMClient
+from jarvis.infrastructure.engine.main_control_loop import MainControlLoop
 
 # Repositories
 from jarvis.infrastructure.persistence.repositories import (
     TaskRepository,
     ConversationRepository,
-    WorkspaceRepository
+    WorkspaceRepository,
 )
 
 # Services
@@ -28,43 +30,38 @@ from jarvis.interfaces.cli.commands.task import (
     MarkTaskCompleteCommand,
     ChangeTaskTitleCommand,
 )
-
-# Conversation commands
 from jarvis.interfaces.cli.commands.conversation.greeting_command import GreetingCommand
 from jarvis.interfaces.cli.commands.conversation.time_command import TimeCommand
-from jarvis.interfaces.cli.commands.conversation.cognitive_chat_command import CognitiveChatCommand
+from jarvis.interfaces.cli.commands.conversation.cognitive_chat_command import (
+    CognitiveChatCommand,
+)
 
-# Automation controller
+# Automation
 from jarvis.infrastructure.automation import (
     SystemController,
     WorkspaceManager,
     SystemHealth,
     ProjectScanner,
+    ScreenReader,
 )
-
-# automation commands
 from jarvis.interfaces.cli.commands.automation import (
     OpenAppCommand,
     StartWorkspaceCommand,
     SystemHealthCommand,
 )
 
-# audio
+# Audio
 from jarvis.infrastructure.listener.listener import AudioListener
-
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "../../data/db/memory.db")
 
 
-# =========================
-# DATABASE INIT
-# =========================
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     cursor.execute(
-        """
+    """
         CREATE TABLE IF NOT EXISTS conversations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_input TEXT NOT NULL,
@@ -74,7 +71,7 @@ def init_db():
     )
 
     cursor.execute(
-        """
+    """
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -86,41 +83,40 @@ def init_db():
     conn.commit()
     conn.close()
 
-
-# =========================
-# MAIN
-# =========================
 def main():
     init_db()
 
-    # Domain
-    user = UserProfile("Tulipa") 
+    # Domain & Services
+    user = UserProfile("Tulipa")
     context = {"user": user}
+    conversation_service = ConversationService(ConversationRepository(DB_PATH))
+    task_service = TaskService(TaskRepository(DB_PATH))
 
-    # Repositories and services
-    task_repo = TaskRepository(DB_PATH)
-    conversation_repo = ConversationRepository(DB_PATH)
-    task_service = TaskService(task_repo)
-    conversation_service = ConversationService(conversation_repo)
-
-    # Cognitive engine client
+    # Infrastructure
     llm_client = LocalLLMClient()
-
-    # Controllers
     sys_controller = SystemController()
     system_health = SystemHealth()
-    workspace_repo = WorkspaceRepository(DB_PATH)
     scanner = ProjectScanner()
-    workspace_manager = WorkspaceManager(sys_controller, workspace_repo, scanner)
+    workspace_manager = WorkspaceManager(
+        sys_controller, WorkspaceRepository(DB_PATH), scanner
+    )
+    screen_reader = ScreenReader()
+    listener = AudioListener()
 
-    # Handlers
-    basic_handler = BasicHandler()
-
-    # Commands
+    # Commands (Cognitive first so we can inject it into the control loop)
     cognitive_chat_cmd = CognitiveChatCommand(
-        llm_client, conversation_service, system_health, sys_controller, workspace_manager
+        llm_client,
+        conversation_service,
+        system_health,
+        sys_controller,
+        workspace_manager,
+        screen_reader,
     )
 
+    # Initialize Control Loop AFTER dependencies are ready
+    control_loop = MainControlLoop(cognitive_chat_cmd, screen_reader)
+
+    basic_handler = BasicHandler()
     commands = [
         AddTaskCommand(task_service),
         ListTasksCommand(task_service),
@@ -132,38 +128,40 @@ def main():
         OpenAppCommand(sys_controller),
         StartWorkspaceCommand(workspace_manager),
         SystemHealthCommand(system_health),
-        cognitive_chat_cmd,    
+        cognitive_chat_cmd,
     ]
 
-    # Router
     router = CommandRouter(commands, basic_handler)
-    listener = AudioListener()
 
-    print("J.A.R.V.I.S. nível 5 iniciado. Os sistemas periféricos estão online. Digite 'sair' para encerrar.\n")
+    print(
+        "J.A.R.V.I.S. nível 5 iniciado. Os sistemas periféricos estão online. Digite 'sair' para encerrar.\n"
+    )
 
     while True:
-        user_input = input(f"{user.name}: ")
+        try:
+            user_input = input(f"\n{user.name}: ")
+            if user_input.lower() == "sair": break
+            if user_input.lower() == "ouvir": 
+                user_input = listener.ouvir() or ""
+            
+            if not user_input.strip(): continue
 
-        if user_input.lower() == "sair":
-            print(basic_handler.farewell())
+            response = control_loop.processar(user_input, context)
+            if response is None:
+                response = router.route(user_input, context)
+
+            conversation_service.register(user_input, response)
+            
+            # Streaming
+            print("J.A.R.V.I.S.: ", end="", flush=True)
+            for char in str(response):
+                print(char, end="", flush=True)
+                time.sleep(0.01)
+            print()
+
+        except KeyboardInterrupt:
             break
 
-        if user_input.lower() == "ouvir":
-            print("--- Escutando... ---")
-            texto_capturado = listener.ouvir()
-            if texto_capturado:
-                print(f"Comando de voz: {texto_capturado}")
-                response = cognitive_chat_cmd.execute(texto_capturado, context)
-                print(response)
-                conversation_service.register(texto_capturado, response)
-            continue
-
-        if user_input.lower() == "lembrar":
-            continue
-
-        response = router.route(user_input, context)
-        print(response)
-        conversation_service.register(user_input, response)
 
 if __name__ == "__main__":
     main()
